@@ -223,10 +223,15 @@ function loadRandomQuestion() {
     availableQuestions.splice(randomIndex, 1);
 
     // Crea le opzioni mescolate e le salva nella storia
-    const mappedOptions = question.o.map((text, index) => ({
-        text,
-        isCorrect: index === question.a
-    }));
+    const mappedOptions = question.o.map((text, index) => {
+        const correctA = question.a;
+        const correctIndices = Array.isArray(correctA) ? correctA : [correctA];
+        return {
+            text,
+            originalIdx: index,
+            isCorrect: correctIndices.includes(index)
+        };
+    });
     shuffleArray(mappedOptions);
 
     // Aggiungi la nuova domanda alla storia
@@ -249,29 +254,61 @@ function renderHistoryEntry(idx) {
     const entry = history[idx];
     currentQuestion = entry.question;
 
+    const isMulti = Array.isArray(entry.question.a);
+    const correctIndices = isMulti ? entry.question.a : [entry.question.a];
+
     elements.feedbackContainer.classList.add('hidden');
     elements.optionsContainer.innerHTML = '';
 
     elements.chapterInfo.textContent = `Capitolo: ${entry.question.c}`;
     elements.questionText.textContent = entry.question.q;
 
+    // Label "Seleziona N risposte" per domande multi
+    let multiLabel = document.getElementById('multi-label');
+    if (isMulti) {
+        if (!multiLabel) {
+            multiLabel = document.createElement('p');
+            multiLabel.id = 'multi-label';
+            elements.optionsContainer.parentNode.insertBefore(multiLabel, elements.optionsContainer);
+        }
+        multiLabel.textContent = `⚠️ Seleziona ${correctIndices.length} risposte`;
+        multiLabel.className = 'multi-label';
+    } else {
+        if (multiLabel) multiLabel.remove();
+    }
+
     entry.mappedOptions.forEach((option, i) => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
         btn.textContent = option.text;
-        btn.dataset.correct = option.isCorrect;
+        btn.dataset.originalIdx = option.originalIdx;
+        btn.dataset.correct = correctIndices.includes(option.originalIdx);
 
         if (entry.answered) {
-            // Mostra lo stato della risposta già data
             btn.disabled = true;
-            if (option.isCorrect) btn.classList.add('correct');
-            if (i === entry.selectedIdx && !option.isCorrect) btn.classList.add('incorrect');
+            if (correctIndices.includes(option.originalIdx)) btn.classList.add('correct');
+            if (entry.selectedIndices && entry.selectedIndices.includes(option.originalIdx) && !correctIndices.includes(option.originalIdx)) {
+                btn.classList.add('incorrect');
+            }
+        } else if (isMulti) {
+            btn.onclick = () => handleMultiSelect(btn, entry, idx);
         } else {
-            btn.onclick = () => handleAnswer(option.isCorrect, entry.question.e, btn, i, idx);
+            btn.onclick = () => handleAnswer(option.isCorrect, entry.question.e, btn, option.originalIdx, idx);
         }
 
         elements.optionsContainer.appendChild(btn);
     });
+
+    // Per domande multi non ancora risposta, aggiungi pulsante Conferma
+    if (isMulti && !entry.answered) {
+        const confirmBtn = document.createElement('button');
+        confirmBtn.id = 'confirm-multi-btn';
+        confirmBtn.textContent = 'Conferma selezione';
+        confirmBtn.className = 'confirm-multi-btn';
+        confirmBtn.disabled = true;
+        confirmBtn.onclick = () => confirmMultiAnswer(entry, idx, correctIndices);
+        elements.optionsContainer.appendChild(confirmBtn);
+    }
 
     // Se era già stata risposta, mostra il feedback
     if (entry.answered) {
@@ -284,7 +321,66 @@ function renderHistoryEntry(idx) {
     updateNavUI();
 }
 
-function handleAnswer(isCorrect, explanation, selectedBtn, selectedIdx, entryIdx) {
+// Gestione selezione multipla: toggle selezione bottone
+function handleMultiSelect(btn, entry, entryIdx) {
+    const isMulti = Array.isArray(entry.question.a);
+    const correctIndices = entry.question.a;
+    const maxSelections = correctIndices.length;
+
+    btn.classList.toggle('selected');
+
+    const selected = elements.optionsContainer.querySelectorAll('.option-btn.selected');
+    const confirmBtn = document.getElementById('confirm-multi-btn');
+
+    // Abilita il pulsante conferma solo quando sono selezionate esattamente N opzioni
+    if (confirmBtn) {
+        confirmBtn.disabled = selected.length !== maxSelections;
+    }
+}
+
+// Conferma la selezione multipla e valuta la risposta
+function confirmMultiAnswer(entry, entryIdx, correctIndices) {
+    const selectedBtns = elements.optionsContainer.querySelectorAll('.option-btn.selected');
+    const selectedOriginalIndices = Array.from(selectedBtns).map(b => parseInt(b.dataset.originalIdx));
+
+    const allButtons = elements.optionsContainer.querySelectorAll('.option-btn');
+    allButtons.forEach(btn => {
+        btn.disabled = true;
+        const origIdx = parseInt(btn.dataset.originalIdx);
+        if (correctIndices.includes(origIdx)) btn.classList.add('correct');
+        if (selectedOriginalIndices.includes(origIdx) && !correctIndices.includes(origIdx)) btn.classList.add('incorrect');
+        btn.classList.remove('selected');
+    });
+
+    // Rimuovi pulsante conferma
+    const confirmBtn = document.getElementById('confirm-multi-btn');
+    if (confirmBtn) confirmBtn.remove();
+
+    // Verifica correttezza: tutte le risposte selezionate devono essere quelle giuste
+    const isCorrect = selectedOriginalIndices.length === correctIndices.length &&
+        correctIndices.every(ci => selectedOriginalIndices.includes(ci));
+
+    entry.answered = true;
+    entry.isCorrect = isCorrect;
+    entry.selectedIndices = selectedOriginalIndices;
+
+    totalAnswered++;
+    if (isCorrect) score++;
+
+    if (currentQuestion) saveChapterStats(currentQuestion.c, isCorrect);
+
+    updateScoreDisplay();
+    saveProgress();
+
+    elements.feedbackTitle.textContent = isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
+    elements.feedbackTitle.className = isCorrect ? 'correct-text' : 'incorrect-text';
+    elements.feedbackExplanation.textContent = entry.question.e;
+    elements.feedbackContainer.classList.remove('hidden');
+
+    updateNavUI();
+}
+
+function handleAnswer(isCorrect, explanation, selectedBtn, selectedOriginalIdx, entryIdx) {
     const entry = history[entryIdx];
     const buttons = elements.optionsContainer.querySelectorAll('.option-btn');
 
@@ -295,10 +391,9 @@ function handleAnswer(isCorrect, explanation, selectedBtn, selectedIdx, entryIdx
 
     if (!isCorrect) selectedBtn.classList.add('incorrect');
 
-    // Aggiorna l'entry nella storia
     entry.answered = true;
     entry.isCorrect = isCorrect;
-    entry.selectedIdx = selectedIdx;
+    entry.selectedIndices = [selectedOriginalIdx];
 
     totalAnswered++;
     if (isCorrect) score++;

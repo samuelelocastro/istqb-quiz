@@ -183,6 +183,55 @@ h1 {
     opacity: 0.8;
 }
 
+/* Selezione multipla */
+.multi-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e6a817;
+    background: rgba(230, 168, 23, 0.12);
+    border: 1px solid rgba(230, 168, 23, 0.35);
+    border-radius: 6px;
+    padding: 7px 12px;
+    margin-bottom: 12px;
+}
+
+.option-btn.selected {
+    background-color: #cce5ff !important;
+    border-color: #004085 !important;
+    color: #004085 !important;
+}
+
+.dark-mode .option-btn.selected {
+    background-color: #003366 !important;
+    border-color: #4da3ff !important;
+    color: #cce5ff !important;
+}
+
+.confirm-multi-btn {
+    display: block;
+    width: 100%;
+    padding: 14px 20px;
+    margin-top: 6px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.confirm-multi-btn:disabled {
+    background-color: #6c757d;
+    cursor: default;
+    opacity: 0.55;
+}
+
+.confirm-multi-btn:hover:not(:disabled) {
+    opacity: 0.88;
+}
+
 #feedback-container {
     margin-top: 20px;
     padding: 15px;
