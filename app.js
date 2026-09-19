@@ -2,8 +2,12 @@ let score = 0;
 let totalAnswered = 0;
 let availableQuestions = [];
 let activeChapter = 'all';
-// Manteniamo riferimento alla domanda corrente per le statistiche
 let currentQuestion = null;
+
+// --- STORIA DELLE DOMANDE (per tornare indietro) ---
+// Ogni entry: { question, mappedOptions, answered, isCorrect, selectedIndex }
+let history = [];
+let historyIndex = -1; // indice della domanda ATTUALMENTE visualizzata nella storia
 
 const elements = {
     questionText: document.getElementById('question-text'),
@@ -13,6 +17,7 @@ const elements = {
     feedbackTitle: document.getElementById('feedback-title'),
     feedbackExplanation: document.getElementById('feedback-explanation'),
     nextBtn: document.getElementById('next-btn'),
+    prevBtn: document.getElementById('prev-btn'),
     scoreDisplay: document.getElementById('score'),
     totalDisplay: document.getElementById('total-answered'),
     themeToggle: document.getElementById('theme-toggle'),
@@ -20,7 +25,8 @@ const elements = {
     statsBtn: document.getElementById('stats-btn'),
     statsContainer: document.getElementById('stats-container'),
     statsContent: document.getElementById('stats-content'),
-    closeStatsBtn: document.getElementById('close-stats-btn')
+    closeStatsBtn: document.getElementById('close-stats-btn'),
+    progressBar: document.getElementById('progress-bar')
 };
 
 function initQuiz() {
@@ -29,60 +35,92 @@ function initQuiz() {
 
     elements.themeToggle.addEventListener('click', toggleTheme);
     elements.resetBtn.addEventListener('click', resetQuiz);
-    elements.nextBtn.addEventListener('click', loadRandomQuestion);
+    elements.nextBtn.addEventListener('click', handleNext);
+    elements.prevBtn.addEventListener('click', handlePrev);
     elements.statsBtn.addEventListener('click', showStats);
     elements.closeStatsBtn.addEventListener('click', () => {
         elements.statsContainer.classList.add('hidden');
     });
 
-    // Listener filtri capitolo
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterQuestions(btn.dataset.chapter));
     });
 
-    // Se non ci sono domande salvate (primo avvio)
     if (availableQuestions.length === 0 && totalAnswered === 0) {
         availableQuestions = [...questions];
-        loadRandomQuestion();
-    } else {
-        // Riprendiamo dallo stato salvato, carichiamo una nuova domanda
-        // solo se non c'è già una in corso nel container
-        if (elements.optionsContainer.innerHTML.trim() === '') {
-            loadRandomQuestion();
-        }
     }
+
+    // Se la storia ha un'ultima domanda, la mostriamo; altrimenti ne carichiamo una nuova
+    if (history.length > 0 && historyIndex >= 0) {
+        renderHistoryEntry(historyIndex);
+    } else {
+        loadRandomQuestion();
+    }
+}
+
+// --- NAVIGAZIONE ---
+function handleNext() {
+    // Se siamo nel mezzo della storia (stiamo rivedendo), andiamo avanti
+    if (historyIndex < history.length - 1) {
+        historyIndex++;
+        renderHistoryEntry(historyIndex);
+    } else {
+        // Siamo all'ultima domanda: carica una nuova
+        loadRandomQuestion();
+    }
+}
+
+function handlePrev() {
+    if (historyIndex > 0) {
+        historyIndex--;
+        renderHistoryEntry(historyIndex);
+    }
+}
+
+// Aggiorna lo stato dei pulsanti prev/next e la progress bar
+function updateNavUI() {
+    // Indietro: disabilitato se siamo alla prima domanda della storia
+    elements.prevBtn.disabled = (historyIndex <= 0);
+
+    // Avanti: testo diverso se siamo a fine storia o nel mezzo
+    if (historyIndex < history.length - 1) {
+        elements.nextBtn.textContent = 'Avanti →';
+    } else {
+        elements.nextBtn.textContent = 'Prossima Domanda →';
+    }
+
+    // Progress bar: basata sulle domande già usate nella sessione corrente
+    const totalInPool = activeChapter === 'all' ? questions.length : history.length + availableQuestions.length;
+    const done = history.length;
+    const pct = totalInPool > 0 ? Math.min(100, Math.round((done / totalInPool) * 100)) : 0;
+    elements.progressBar.style.width = pct + '%';
 }
 
 // --- FILTRO CAPITOLI ---
 function filterQuestions(chapter) {
     activeChapter = chapter;
 
-    // Aggiorna UI bottoni filtro
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.chapter === chapter);
     });
 
-    // Filtra il pool completo
     if (chapter === 'all') {
         availableQuestions = [...questions];
     } else {
         availableQuestions = questions.filter(q => q.c.startsWith(chapter + '.'));
-        // Gestione capitoli con prefisso singolo cifra (es. "1.x", "2.x" ecc.)
         if (availableQuestions.length === 0) {
-            // fallback più ampio: la sezione inizia con il numero del capitolo
             availableQuestions = questions.filter(q => q.c.charAt(0) === chapter);
         }
     }
 
-    // Resetta score sessione
+    // Resetta sessione e storia per il nuovo filtro
     score = 0;
     totalAnswered = 0;
+    history = [];
+    historyIndex = -1;
     updateScoreDisplay();
-
-    // Nasconde le stats se aperte
     elements.statsContainer.classList.add('hidden');
 
-    // Carica nuova domanda dal pool filtrato
     loadRandomQuestion();
     saveProgress();
 }
@@ -109,7 +147,9 @@ function saveProgress() {
         score,
         totalAnswered,
         availableQuestions,
-        activeChapter
+        activeChapter,
+        history,
+        historyIndex
     };
     localStorage.setItem('istqb-progress', JSON.stringify(state));
 }
@@ -118,12 +158,13 @@ function loadProgress() {
     const savedState = localStorage.getItem('istqb-progress');
     if (savedState) {
         const state = JSON.parse(savedState);
-        score = state.score;
-        totalAnswered = state.totalAnswered;
-        availableQuestions = state.availableQuestions;
+        score = state.score || 0;
+        totalAnswered = state.totalAnswered || 0;
+        availableQuestions = state.availableQuestions || [];
+        history = state.history || [];
+        historyIndex = state.historyIndex !== undefined ? state.historyIndex : -1;
         if (state.activeChapter) {
             activeChapter = state.activeChapter;
-            // Ripristina bottone attivo
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.chapter === activeChapter);
             });
@@ -138,7 +179,8 @@ function resetQuiz() {
         totalAnswered = 0;
         activeChapter = 'all';
         availableQuestions = [...questions];
-        // Ripristina filtro "Tutti"
+        history = [];
+        historyIndex = -1;
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.chapter === 'all');
         });
@@ -172,83 +214,110 @@ function loadRandomQuestion() {
         } else {
             availableQuestions = questions.filter(q => q.c.charAt(0) === activeChapter);
         }
+        // Manteniamo la storia per la navigazione indietro
     }
 
     const randomIndex = Math.floor(Math.random() * availableQuestions.length);
     const question = availableQuestions[randomIndex];
     currentQuestion = question;
-
-    // Rimuovi la domanda dalla lista corrente
     availableQuestions.splice(randomIndex, 1);
-    saveProgress();
 
-    displayQuestion(question);
+    // Crea le opzioni mescolate e le salva nella storia
+    const mappedOptions = question.o.map((text, index) => ({
+        text,
+        isCorrect: index === question.a
+    }));
+    shuffleArray(mappedOptions);
+
+    // Aggiungi la nuova domanda alla storia
+    const entry = {
+        question,
+        mappedOptions,
+        answered: false,
+        isCorrect: null,
+        selectedIdx: null
+    };
+    history.push(entry);
+    historyIndex = history.length - 1;
+
+    saveProgress();
+    renderHistoryEntry(historyIndex);
 }
 
-function displayQuestion(q) {
+// Renderizza la domanda in base a un entry della storia
+function renderHistoryEntry(idx) {
+    const entry = history[idx];
+    currentQuestion = entry.question;
+
     elements.feedbackContainer.classList.add('hidden');
     elements.optionsContainer.innerHTML = '';
 
-    elements.chapterInfo.textContent = `Capitolo: ${q.c}`;
-    elements.questionText.textContent = q.q;
+    elements.chapterInfo.textContent = `Capitolo: ${entry.question.c}`;
+    elements.questionText.textContent = entry.question.q;
 
-    // Crea un array mappato per poter randomizzare mantenendo traccia della corretta
-    const mappedOptions = q.o.map((text, index) => ({
-        text,
-        isCorrect: index === q.a
-    }));
-
-    // Randomizza le opzioni per questa domanda
-    shuffleArray(mappedOptions);
-
-    mappedOptions.forEach((option) => {
+    entry.mappedOptions.forEach((option, i) => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
         btn.textContent = option.text;
         btn.dataset.correct = option.isCorrect;
-        btn.onclick = () => handleAnswer(option.isCorrect, q.e, btn);
+
+        if (entry.answered) {
+            // Mostra lo stato della risposta già data
+            btn.disabled = true;
+            if (option.isCorrect) btn.classList.add('correct');
+            if (i === entry.selectedIdx && !option.isCorrect) btn.classList.add('incorrect');
+        } else {
+            btn.onclick = () => handleAnswer(option.isCorrect, entry.question.e, btn, i, idx);
+        }
+
         elements.optionsContainer.appendChild(btn);
     });
+
+    // Se era già stata risposta, mostra il feedback
+    if (entry.answered) {
+        elements.feedbackTitle.textContent = entry.isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
+        elements.feedbackTitle.className = entry.isCorrect ? 'correct-text' : 'incorrect-text';
+        elements.feedbackExplanation.textContent = entry.question.e;
+        elements.feedbackContainer.classList.remove('hidden');
+    }
+
+    updateNavUI();
 }
 
-function handleAnswer(isCorrect, explanation, selectedBtn) {
+function handleAnswer(isCorrect, explanation, selectedBtn, selectedIdx, entryIdx) {
+    const entry = history[entryIdx];
     const buttons = elements.optionsContainer.querySelectorAll('.option-btn');
 
-    // Disabilita tutti i bottoni e mostra quale era quello corretto
     buttons.forEach((btn) => {
         btn.disabled = true;
-        if (btn.dataset.correct === "true") {
-            btn.classList.add('correct');
-        }
+        if (btn.dataset.correct === 'true') btn.classList.add('correct');
     });
 
+    if (!isCorrect) selectedBtn.classList.add('incorrect');
+
+    // Aggiorna l'entry nella storia
+    entry.answered = true;
+    entry.isCorrect = isCorrect;
+    entry.selectedIdx = selectedIdx;
+
     totalAnswered++;
+    if (isCorrect) score++;
 
-    if (isCorrect) {
-        score++;
-        elements.feedbackTitle.textContent = "✅ Risposta Corretta!";
-        elements.feedbackTitle.className = 'correct-text';
-    } else {
-        selectedBtn.classList.add('incorrect');
-        elements.feedbackTitle.textContent = "❌ Risposta Sbagliata";
-        elements.feedbackTitle.className = 'incorrect-text';
-    }
-
-    // Salva statistiche per capitolo
-    if (currentQuestion) {
-        saveChapterStats(currentQuestion.c, isCorrect);
-    }
+    if (currentQuestion) saveChapterStats(currentQuestion.c, isCorrect);
 
     updateScoreDisplay();
     saveProgress();
 
+    elements.feedbackTitle.textContent = isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
+    elements.feedbackTitle.className = isCorrect ? 'correct-text' : 'incorrect-text';
     elements.feedbackExplanation.textContent = explanation;
     elements.feedbackContainer.classList.remove('hidden');
+
+    updateNavUI();
 }
 
 // --- STATISTICHE PER CAPITOLO ---
 function getChapterNumber(sectionLabel) {
-    // Estrae il numero del capitolo (es. "4.2.1 EP" → "4")
     const match = sectionLabel.match(/^(\d)/);
     return match ? match[1] : 'altro';
 }
@@ -256,9 +325,7 @@ function getChapterNumber(sectionLabel) {
 function saveChapterStats(sectionLabel, isCorrect) {
     const chapterNum = getChapterNumber(sectionLabel);
     const stats = JSON.parse(localStorage.getItem('istqb-stats') || '{}');
-    if (!stats[chapterNum]) {
-        stats[chapterNum] = { answered: 0, correct: 0 };
-    }
+    if (!stats[chapterNum]) stats[chapterNum] = { answered: 0, correct: 0 };
     stats[chapterNum].answered++;
     if (isCorrect) stats[chapterNum].correct++;
     localStorage.setItem('istqb-stats', JSON.stringify(stats));
@@ -280,7 +347,6 @@ function showStats() {
     if (chapterKeys.length === 0) {
         elements.statsContent.innerHTML = '<p class="stats-empty">Nessuna statistica disponibile. Rispondi ad alcune domande!</p>';
     } else {
-        // Totali globali
         let totalAnsw = 0, totalCorr = 0;
         chapterKeys.forEach(k => {
             totalAnsw += stats[k].answered;
@@ -293,8 +359,8 @@ function showStats() {
             <thead>
                 <tr>
                     <th>Capitolo</th>
-                    <th>Risposte</th>
-                    <th>Corrette</th>
+                    <th>Risp.</th>
+                    <th>Corr.</th>
                     <th>% Esattezza</th>
                 </tr>
             </thead>
@@ -304,6 +370,7 @@ function showStats() {
             const s = stats[k];
             const pct = s.answered > 0 ? Math.round((s.correct / s.answered) * 100) : 0;
             const label = chapterNames[k] || `Cap. ${k}`;
+            const barColor = pct >= 75 ? '#28a745' : pct >= 50 ? '#ffc107' : '#dc3545';
             html += `
                 <tr>
                     <td>${label}</td>
@@ -312,7 +379,7 @@ function showStats() {
                     <td>
                         <span>${pct}%</span>
                         <div class="stats-bar-wrap">
-                            <div class="stats-bar" style="width:${pct}%"></div>
+                            <div class="stats-bar" style="width:${pct}%; background-color:${barColor}"></div>
                         </div>
                     </td>
                 </tr>`;
@@ -334,9 +401,7 @@ function showStats() {
     }
 
     elements.statsContainer.classList.remove('hidden');
-    // Scroll alla sezione statistiche
     elements.statsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 window.onload = initQuiz;
-

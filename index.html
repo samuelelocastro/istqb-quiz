@@ -28,6 +28,8 @@
             <button class="filter-btn" data-chapter="6">Cap. 6</button>
         </div>
 
+        <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
         <main id="quiz-container">
             <div id="question-box">
                 <p id="chapter-info"></p>
@@ -39,7 +41,10 @@
             <div id="feedback-container" class="hidden">
                 <h3 id="feedback-title"></h3>
                 <p id="feedback-explanation"></p>
-                <button id="next-btn">Prossima Domanda</button>
+                <div class="nav-buttons">
+                    <button id="prev-btn">← Indietro</button>
+                    <button id="next-btn">Avanti →</button>
+                </div>
             </div>
         </main>
 
