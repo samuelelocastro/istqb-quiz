@@ -11,11 +11,23 @@
         <header>
             <h1>ISTQB Quiz 🚀</h1>
             <div class="controls">
+                <button id="stats-btn" class="icon-btn" title="Statistiche">📊</button>
                 <button id="theme-toggle" class="icon-btn" title="Cambia Tema">🌙</button>
                 <button id="reset-btn" class="icon-btn" title="Ricomincia">🔄</button>
             </div>
             <div id="score-container">Punteggio: <span id="score">0</span> / <span id="total-answered">0</span></div>
         </header>
+
+        <div id="filter-bar">
+            <button class="filter-btn active" data-chapter="all">Tutti</button>
+            <button class="filter-btn" data-chapter="1">Cap. 1</button>
+            <button class="filter-btn" data-chapter="2">Cap. 2</button>
+            <button class="filter-btn" data-chapter="3">Cap. 3</button>
+            <button class="filter-btn" data-chapter="4">Cap. 4</button>
+            <button class="filter-btn" data-chapter="5">Cap. 5</button>
+            <button class="filter-btn" data-chapter="6">Cap. 6</button>
+        </div>
+
         <main id="quiz-container">
             <div id="question-box">
                 <p id="chapter-info"></p>
@@ -30,6 +42,12 @@
                 <button id="next-btn">Prossima Domanda</button>
             </div>
         </main>
+
+        <div id="stats-container" class="hidden">
+            <h2>📊 Le tue Statistiche</h2>
+            <div id="stats-content"></div>
+            <button id="close-stats-btn">Chiudi</button>
+        </div>
     </div>
     <script src="questions.js"></script>
     <script src="app.js"></script>
