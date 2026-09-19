@@ -252,9 +252,14 @@ h1 {
 .incorrect-text { color: var(--incorrect-color); }
 
 #feedback-explanation {
-    font-size: 0.95rem;
+    color: var(--text-color);
     line-height: 1.5;
+    font-size: 0.95rem;
     margin-bottom: 15px;
+}
+
+#feedback-explanation strong {
+    color: var(--primary-color);
 }
 
 #next-btn {

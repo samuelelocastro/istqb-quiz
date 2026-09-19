@@ -222,7 +222,7 @@ function loadRandomQuestion() {
     currentQuestion = question;
     availableQuestions.splice(randomIndex, 1);
 
-    // Crea le opzioni mescolate e le salva nella storia
+    // Mantieni l'ordine originale A, B, C, D delle risposte
     const mappedOptions = question.o.map((text, index) => {
         const correctA = question.a;
         const correctIndices = Array.isArray(correctA) ? correctA : [correctA];
@@ -232,7 +232,7 @@ function loadRandomQuestion() {
             isCorrect: correctIndices.includes(index)
         };
     });
-    shuffleArray(mappedOptions);
+    // NON mescoliamo: le risposte restano nell'ordine A, B, C, D originale dell'esame
 
     // Aggiungi la nuova domanda alla storia
     const entry = {
@@ -247,6 +247,19 @@ function loadRandomQuestion() {
 
     saveProgress();
     renderHistoryEntry(historyIndex);
+}
+
+// Formatta la spiegazione aggiungendo grassetti e andate a capo
+function formatExplanation(text) {
+    if (!text) return '';
+    let formatted = text;
+    // Evidenzia la risposta ufficiale
+    formatted = formatted.replace(/Risposta ufficiale:/gi, '<strong>Risposta ufficiale:</strong>');
+    // Manda a capo e in grassetto a), b), c), ecc.
+    formatted = formatted.replace(/([a-e]\))/gi, '<br><br><strong>$1</strong>');
+    // Manda a capo i., ii., iii. ecc.
+    formatted = formatted.replace(/(i\.|ii\.|iii\.|iv\.|v\.)/gi, '<br><strong>$1</strong>');
+    return formatted;
 }
 
 // Renderizza la domanda in base a un entry della storia
@@ -314,7 +327,7 @@ function renderHistoryEntry(idx) {
     if (entry.answered) {
         elements.feedbackTitle.textContent = entry.isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
         elements.feedbackTitle.className = entry.isCorrect ? 'correct-text' : 'incorrect-text';
-        elements.feedbackExplanation.textContent = entry.question.e;
+        elements.feedbackExplanation.innerHTML = formatExplanation(entry.question.e);
         elements.feedbackContainer.classList.remove('hidden');
     }
 
@@ -374,7 +387,7 @@ function confirmMultiAnswer(entry, entryIdx, correctIndices) {
 
     elements.feedbackTitle.textContent = isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
     elements.feedbackTitle.className = isCorrect ? 'correct-text' : 'incorrect-text';
-    elements.feedbackExplanation.textContent = entry.question.e;
+    elements.feedbackExplanation.innerHTML = formatExplanation(entry.question.e);
     elements.feedbackContainer.classList.remove('hidden');
 
     updateNavUI();
@@ -405,7 +418,7 @@ function handleAnswer(isCorrect, explanation, selectedBtn, selectedOriginalIdx, 
 
     elements.feedbackTitle.textContent = isCorrect ? '✅ Risposta Corretta!' : '❌ Risposta Sbagliata';
     elements.feedbackTitle.className = isCorrect ? 'correct-text' : 'incorrect-text';
-    elements.feedbackExplanation.textContent = explanation;
+    elements.feedbackExplanation.innerHTML = formatExplanation(explanation);
     elements.feedbackContainer.classList.remove('hidden');
 
     updateNavUI();
