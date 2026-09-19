@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISTQB Quiz Pratica</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ISTQB Quiz (Foundation Level)</h1>
+            <div id="score-container">Punteggio: <span id="score">0</span> / <span id="total-answered">0</span></div>
+        </header>
+        <main id="quiz-container">
+            <div id="question-box">
+                <p id="chapter-info"></p>
+                <h2 id="question-text">Caricamento domanda...</h2>
+            </div>
+            <div id="options-container">
+                <!-- Opzioni inserite via JS -->
+            </div>
+            <div id="feedback-container" class="hidden">
+                <h3 id="feedback-title"></h3>
+                <p id="feedback-explanation"></p>
+                <button id="next-btn">Prossima Domanda</button>
+            </div>
+        </main>
+    </div>
+    <script src="questions.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
